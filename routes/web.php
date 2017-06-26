@@ -12,3 +12,4 @@
 */
 
 Route::get('/', 'PriceController@show');
+Route::get('/fetchUpdate/{createdAt}', 'PriceController@fetchUpdate');

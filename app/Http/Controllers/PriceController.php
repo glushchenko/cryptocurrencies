@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use App\Currency;
 use App\Price;
 
@@ -9,17 +10,41 @@ class PriceController extends Controller
 {
     public function show()
     {
-        $currenciesList = $this->getCurrenciesList();
-        $file = $this->getPage();
-        $currenciesDOM = $this->getCurrenciesDOM($file);
-        $this->parse($currenciesDOM, $currenciesList);
+        $this->update();
 
         $priceList =
             Currency::with('latestPrice')
                 ->get()
                 ->sortByDesc('latestPrice.change24');
 
-        return view('index', ['priceList' => $priceList]);
+        $lastFetch =
+            Price::select('created_at')
+            ->orderBy('created_at', 'desc')
+            ->first()->created_at;
+
+        return view('index', [
+            'priceList' => $priceList,
+            'lastFetch' => $lastFetch
+        ]);
+    }
+
+    public function fetchUpdate(Request $request, $createdAt)
+    {
+        $this->update();
+
+        return
+            Currency::with('latestPrice')
+                ->get()
+                ->where('latestPrice.created_at', '>', $createdAt)
+                ->sortByDesc('latestPrice.change24');
+    }
+
+    private function update()
+    {
+        $currenciesList = $this->getCurrenciesList();
+        $file = $this->getPage();
+        $currenciesDOM = $this->getCurrenciesDOM($file);
+        $this->parse($currenciesDOM, $currenciesList);
     }
 
     private function getPage()
@@ -60,7 +85,7 @@ class PriceController extends Controller
         $currenciesList = [];
 
         foreach ($currencies as $currency) {
-            $currenciesList[$currency->name] = [
+            $currenciesList[$currency->name . $currency->symbol] = [
                 'id' => $currency->id,
                 'amount' => $currency->latestPrice['amount'],
                 'change24' => $currency->latestPrice['change24'],
@@ -74,6 +99,8 @@ class PriceController extends Controller
     {
         foreach ($currenciesDOM as $currencyDOM) {
             $name = trim($currencyDOM->childNodes[2]->textContent);
+            $symbol = trim($currencyDOM->childNodes[4]->textContent);
+            $uniqueKey = $name . $symbol;
 
             $amount =
                 (float) str_replace('$', '',
@@ -88,9 +115,10 @@ class PriceController extends Controller
             $price->amount = $amount;
             $price->change24 = $change24;
 
-            if (!array_key_exists($name, $currenciesList)) {
+            if (!array_key_exists($uniqueKey, $currenciesList)) {
                 $currency = new Currency();
                 $currency->name = $name;
+                $currency->symbol = $symbol;
                 $currency->save();
 
                 $price->currency_id = $currency->id;
@@ -98,13 +126,13 @@ class PriceController extends Controller
             }
 
             if (
-                array_key_exists($name, $currenciesList)
+                array_key_exists($uniqueKey, $currenciesList)
                 && (
-                    $amount !== $currenciesList[$name]['amount']
-                    || $change24 !== $currenciesList[$name]['change24']
+                    $amount !== $currenciesList[$uniqueKey]['amount']
+                    || $change24 !== $currenciesList[$uniqueKey]['change24']
                 )
             ) {
-                $price->currency_id = $currenciesList[$name]['id'];
+                $price->currency_id = $currenciesList[$uniqueKey]['id'];
                 $price->save();
             }
         }

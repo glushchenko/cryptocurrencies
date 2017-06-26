@@ -28,6 +28,8 @@
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 
         <script type="text/javascript">
+            var lastFetch = '{{ $lastFetch }}';
+
             $(document).ready(function() {
                 $("#nameFilter").keyup(function () {
                     var rows = $("table").find("tbody > tr").hide();
@@ -37,11 +39,36 @@
                         rows.show();
                     }
                 });
+
+                var update = function() {
+                    $.get('/fetchUpdate/' + encodeURIComponent(lastFetch), function(data) {
+                        $.each( data, function( key, value ) {
+                            var id = value.id,
+                                name = value.name,
+                                amount = value.latest_price.amount + ' $',
+                                change24 = value.latest_price.change24 + ' %';
+
+                            $('#amount-' + id).val(amount);
+                            $('#change-' + id).val(change24);
+
+                            lastFetch = value.latest_price.created_at;
+
+                            $('<p>Update! Currency: ' + name + ' new price – '
+                                + amount + '; change 24 – ' + change24 +
+                              '</p>').appendTo('.status_bar');
+                        });
+
+                        update();
+                    });
+                };
+
+                update();
             });
         </script>
     </head>
     <body>
         <h1>Crypto currencies price/changes</h1>
+        <div class="status_bar"></div>
         <table>
             <thead>
             <tr>
@@ -67,8 +94,8 @@
                 @endif"
             >
                 <td>{{ $price->name }}</td>
-                <td>{{ $price->latestPrice['amount'] }} $</td>
-                <td>{{ $price->latestPrice['change24'] }} %</td>
+                <td id="amount-{{ $price->id }}">{{ $price->latestPrice['amount'] }} $</td>
+                <td id="change-{{ $price->id }}">{{ $price->latestPrice['change24'] }} %</td>
             </tr>
 @endforeach
             </tbody>
