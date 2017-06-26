@@ -1,0 +1,34 @@
+version: '3.1'
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: "cryptocurrencies-nginx"
+    ports:
+      - "80:80"
+    volumes:
+      - ../:/cryptocurrencies/
+      - ./nginx/site.conf:/etc/nginx/conf.d/site.conf
+    links:
+      - php-fpm
+  php-fpm:
+    container_name: "cryptocurrencies-php-fpm"
+    build:
+      context: ./
+      dockerfile: ./php/Dockerfile
+    volumes:
+      - ../:/cryptocurrencies/
+    links:
+      - mysql
+  mysql:
+    container_name: "cryptocurrencies-mysql"
+    image: mysql:5.5
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=true
+      - MYSQL_DATABASE=cryptocurrencies
+      - MYSQL_USER=cryptocurrencies
+    volumes:
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ../mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
